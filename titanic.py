@@ -131,6 +131,8 @@ print("Linear Regression accuracy is " + str(accuracy))
 # Logistic Regression checking
 alg = LogisticRegression(random_state=1)
 scores = cross_validation.cross_val_score(alg, titanic[predictors], titanic["Survived"], cv=3)
+alg.fit(titanic[predictors], titanic["Survived"])
+predictions = alg.predict(titanic_test[predictors])
 print("Logistic Regression accuracy is " + str(scores.mean()) )
 
 # Random Forest
@@ -138,15 +140,15 @@ alg = RandomForestClassifier(random_state=1, n_estimators =150, min_samples_spli
 scores = cross_validation.cross_val_score(alg, titanic[predictors], titanic["Survived"], cv=3)
 print("Random Forest accuracy is " + str(scores.mean()) )
 
-# Ensemble
+# Ensemble KF
 algorithms = [
         [
             GradientBoostingClassifier(random_state=1, n_estimators=25, max_depth=3),
             ['Pclass', 'Sex', 'Age', 'FamilySize', 'Fare', 'Embarked', 'Title']
             ],
         [
-            LogisticRegression(random_state=1),
-            ['Pclass', 'Sex', 'Age', 'FamilySize', 'Fare', 'Embarked', 'Title']
+            RandomForestClassifier(random_state=1, n_estimators =150, min_samples_split=5, min_samples_leaf=1),
+            predictors
             ]
         ]
 kf = KFold(titanic.shape[0], n_folds=3, random_state=1)
@@ -158,7 +160,7 @@ for train, test in kf:
         alg.fit(titanic[predictors].iloc[train,:], train_target)
         test_predictions=alg.predict_proba(titanic[predictors].iloc[test,:].astype(float))[:,1]
         full_test_predictions.append(test_predictions)
-    test_predictions = (full_test_predictions[0]+full_test_predictions[1])/2
+    test_predictions = (full_test_predictions[0]*3+full_test_predictions[1])/4
     test_predictions[test_predictions <= .5] = 0
     test_predictions[test_predictions > .5] = 1
     predictions.append(test_predictions)
@@ -170,9 +172,18 @@ for i, value in enumerate(predictions):
 accuracy = accuracy/len(predictions)
 print("Ensemble accuracy is " + str(accuracy))
 
+# Ensemble
+full_predictions = []
+for alg, predictors in algorithms:
+    alg.fit(titanic[predictors], titanic["Survived"])
+    predictions = alg.predict_proba(titanic_test[predictors].astype(float))[:,1]
+    full_predictions.append(predictions)
+predictions = (full_predictions[0]*3 + full_predictions[1])/4
+predictions[predictions <= .5] = 0
+predictions[predictions > .5] = 1
+predictions = predictions.astype(int)
+
 # Submission
-alg.fit(titanic[predictors], titanic["Survived"])
-predictions = alg.predict(titanic_test[predictors])
 submission = pandas.DataFrame({
         "PassengerId": titanic_test["PassengerId"],
         "Survived": predictions
